@@ -1,0 +1,383 @@
+#ifndef RECOG_H
+#define RECOG_H
+
+//#define USE_LATTICE  // use lattice or not
+
+#ifdef X64
+#define XINT long
+#else
+#define XINT int
+#endif
+
+#ifdef ASR_AVX
+#define ALIGNSIZE	32
+#else
+#define ALIGNSIZE	16
+//#define ALIGNTYPE	__declspec(align(ALIGNSIZE))	// for VC
+#endif
+#define ALIGNTYPE	__attribute__(aligned(ALIGNSIZE))	// for GCC
+
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <math.h>
+#include <time.h>
+#include <float.h> // Added by Chi-Yueh Lin @20110804
+
+#include <omp.h>
+#if defined(ASR_SSE2)
+#include <emmintrin.h>	// SSE2: 128-bit
+#elif defined(ASR_AVX)
+#include <immintrin.h>	// AVX: 256-bit
+#endif
+
+
+#define MAXLEN	1000		// Max length reading a line
+#define MODELSTRLEN	30
+#define WORDLEN	50 // 50:default 100:LiveABC
+#define MAX_HISTORY_LEN	300
+#define MAX_STATE_NUM 8
+#define MAX_PHONE_NUM 60 // 80:LiveABC
+#define MAX_FRAME_NUM 4000 // 1000 // 2000:HUB4NE Inside Test
+#define DIC_OFFSET	100
+#define EMPTY "<eps>"
+#define SIL	"sil"
+#define FSTR "<F>"
+#define GP "GP"
+#define SP "sp"
+
+#ifdef USE_LATTICE
+#define LATTICE_LINE 100000
+#define LATTICE_LINE_LEN 100
+#endif
+
+#if defined(ASR_FIXED)
+#define SCORETYPE int //@fixed
+#else
+#define SCORETYPE float //@float
+#endif
+
+typedef struct {
+	float mixtureWeight;
+	float *mean;
+	float *variance;	
+	float gconst;
+} MIXTURE;
+
+typedef struct {
+	char str[MODELSTRLEN];	// used for sorting
+	int mixtureNum;
+	MIXTURE *mixture;
+} TIEDSTATE;
+
+typedef struct {
+	char str[MODELSTRLEN];	// used for sorting
+	int stateNum;
+	float *transProb;
+} TIEDMATRIX;
+
+typedef struct {
+	char str[MODELSTRLEN];	// used for sorting
+	int mixtureNum;
+	SCORETYPE *mixtureWeight;
+	SCORETYPE *mean;
+	SCORETYPE *variance;
+	SCORETYPE *gconst;
+} TIEDSTATEVEC;				// vectorized for decoding
+
+typedef struct{
+	char str[MODELSTRLEN];	// used for sorting
+	int stateNum;
+	int *tiedStateIndex;
+	int tiedMatrixIndex;
+} MASTERMACROFILE;
+
+typedef struct {
+	char str[WORDLEN];
+} SYMBOLLIST;
+
+#ifdef USE_LATTICE
+typedef struct {
+	char str[WORDLEN*3];
+} LATTICELIST;
+#endif
+
+typedef struct {
+	char transcription[MAXLEN];
+	char speaker[50];
+	char feaFile[150]; // 100
+} FEALIST;
+
+typedef struct {
+	int node;
+	int branch;
+	int state;	
+	int hist;
+	int reDirectPath;
+	SCORETYPE score;
+	int phonePos;
+
+	#ifdef USE_LATTICE
+	SCORETYPE lmScore; // for lattice banco@20120712
+	SCORETYPE amScore; // for lattice banco@20120712
+	#endif
+} ARENA;
+
+typedef struct {
+	int frameBoundary[MAX_HISTORY_LEN];
+	int arc[MAX_HISTORY_LEN];
+	int pathNum;
+	int accessed;
+	int frame;
+
+	#ifdef USE_MINIMIZED_WFST
+	short curOut;
+	short stateOut;
+	#endif
+
+	#ifdef USE_LATTICE
+	SCORETYPE lmScore[MAX_HISTORY_LEN]; // for lattice banco@20120712
+	SCORETYPE amScore[MAX_HISTORY_LEN]; // for lattice banco@20120712
+	#endif
+} HISTORY;
+
+typedef struct {
+	int in;
+	int out;
+	float weight;
+	int endNode;
+} ARC;
+
+typedef struct{
+	int start;
+	int end;
+	int in;
+	int out;
+	float weight;
+} LINK;
+
+typedef struct {
+	int branchNum;
+	ARC *arc;
+} NODE_OFFLINE;
+
+typedef struct {
+	int feaFile;
+	int frame;
+	int branchNum;
+	int token;
+	int arcPos;
+} NODE;
+
+typedef struct{
+	int word;
+	int phoneNum;
+	int phone[MAX_PHONE_NUM];
+} DIC;
+
+class MACRO {
+private:
+	void allocateMem(char *);
+public:
+	MACRO();
+	~MACRO();
+	int modelNum;
+	int streamWidth;
+	int tsNum;
+	int tmNum;
+	TIEDSTATEVEC *ts;
+	TIEDMATRIX *tm;
+	TIEDSTATEVEC **p2ts;
+	TIEDMATRIX **p2tm;
+	MASTERMACROFILE **p2MMF;
+	MASTERMACROFILE *MMF;
+	void readMacroBin(char *);
+};
+
+class FEATURE {
+private:
+	void byteswap(void *, int);
+	void FeaFieldInfo(char *);
+	int frameWidth;
+public:
+	FEATURE(char *feaListFile, int vectorDim);
+	~FEATURE();
+	FEALIST *feaList;
+	int feaListNum;	
+	SCORETYPE *feaVec;
+	int frameNum;
+        void readMFCC(char *feaFileName, int vectorDim, int platform); // 0: floating point, 1: fixed point
+        //void readMFCCforDNN(char *feaFileName, int sizeBlock, int vectorDim, int platform); // 0: floating point, 1: fixed point
+};
+
+class GRAPH {
+private:
+	void allocateMem(char *graphFile);
+	int reDirectPathNum(char *);
+	void splitPathString(int, int, char *);
+	void saveNNInfoPartialExpand(char *str);
+	void startEndInOutWeight(char *str);
+	int obtainTerminal();
+	int graphFileLineNum;
+public:
+	GRAPH();
+	~GRAPH();
+	int machineType; // 0: acceptor, 1: transducer
+	NODE *N;
+	NODE_OFFLINE *NO;
+	NODE **p2N;
+	NODE_OFFLINE **p2NO;
+	ARC *arc;		
+	int modelNum;
+	int arcNum, nodeNum;
+	int *terminal, terminalNum;
+	int symbolNum;
+	SYMBOLLIST *symbolList;
+	void readGraph(char *graphFile, char *symListFile, int partialExpand); // partialExpand: 0=no, 1=yes
+	void readGraph2Decode(char *graphFile, char *symListFile, float alpha, int platform); // 0: floating point, 1: fixed point
+	void readParallelGraph2Decode(char *graphList, int platform); // 0: floating point, 1: fixed point
+};
+
+class UTILITY {
+private:
+	void makeStartFromZero(LINK **k, int lkNum);
+	//void makeStartFromZero(LINK **k, unsigned int lkNum); // banco
+	int maxNodeNumFromLink(LINK **k, int lkNum);
+	//unsigned int maxNodeNumFromLink(LINK **k, unsigned int lkNum); //banco
+	void sortLink(LINK **k, int lkNum);
+	void outputTransition(int s, int e, int in, int out, float weight, SYMBOLLIST *sl, int mType, char *outStr);
+	void sortDic(DIC *d, int left, int right);
+	int partition(ARENA **p2arena, int deb, int fin);
+	#ifdef USE_LATTICE
+	int latLine;
+	int strPos;
+	char *memLattice;
+	#endif
+public:
+	UTILITY();
+	~UTILITY();
+	void getGraphInfo(char *inFile, int &inFileLineNum, int &nodeNum, int &arcNum, int &machineType);
+	void readSymbolList(SYMBOLLIST *sym, char *fileName, int symNum);
+	void readDic(DIC *d, int &entryNum, SYMBOLLIST *sl, int slNum, char *inDic);
+	int uniqueSymbol(SYMBOLLIST *sl, int slNum);
+	FILE *openFile(const char *fileName, const char *mode);
+	int getFileLineCount(char *);
+	void assignParameter(char *graphFile, char *macroBinFile, char *feaListFile, char *lookupTableFile, char *symbolListFile, char *dicFile, int &beamSize, float &alphaValue, int argc, char **argv);
+	int stringSearch(SYMBOLLIST *,int low, int up, const char *);
+	int stringSearch(MASTERMACROFILE **,int low, int up, const char *);
+	void sortString(SYMBOLLIST *, XINT, XINT);
+	void pseudoSort(ARENA **p2arena, int low, int up, int topN);
+	void quickSort(ARENA **p2arena,int low,int up);
+	bool isNumeric(const char *);
+	void *aligned_malloc(size_t, size_t);
+	void aligned_free(void *);
+	void representLink(LINK **k, NODE_OFFLINE **p, int nNum);	
+	void nodeRenumerate(LINK **k, int lkNum, int *terminalNode, int terminalNodeNum);
+	//void nodeRenumerate(LINK **k, unsigned int lkNum, int *terminalNode, int terminalNodeNum); // banco
+	bool isTerminal(int *terminalNode, int terminalNodeNum, int node);
+	void outputGraph(LINK **k, int lkNum, int *terminalNode, int terminalNodeNum, SYMBOLLIST *sym, int mType, char *outFile);
+	//void outputGraph(LINK **k, unsigned int lkNum, int *terminalNode, int terminalNodeNum, SYMBOLLIST *sym, int mType, char *outFile); //banco
+	void outputGraph(NODE_OFFLINE **p, int nNum, int *t, int tNum, SYMBOLLIST *sym, int mType, char *outFile);
+	void writeVector(FILE *f, int *s, int num, int breakSize);
+	void showArena(ARENA **p2a, HISTORY *h, GRAPH &g, MACRO &m, char *fileName, int showNum);
+
+
+	#ifdef USE_LATTICE
+	void showLatticeMem(ARENA **p2a, HISTORY *h, GRAPH &g, MACRO &m, char *fileName, int showNum, int frame, int type);
+
+	void showLattice(ARENA **p2a, HISTORY *h, GRAPH &g, MACRO &m, char *fileName, int showNum, int frame, int type); // 20120813
+	void showLattice2(ARENA **p2a, HISTORY *h, GRAPH &g, MACRO &m, char *fileName, int showNum, int frame, int type); // 20120813
+	int uniqueSymbol(LATTICELIST *sl, int slNum);
+	void sortString(LATTICELIST *, int, int);
+	#endif
+};
+
+class SEARCH {
+private:	
+	ARENA *arena, **p2arena;
+	HISTORY *hist;
+	void save2arena(int type, int token, int &save2Pos, int node, int branch, int state, int hist, int reDirectPath, SCORETYPE score, int phonePos);
+	void updateToken(int token, int node, int branch, int state, int hist, int reDirectPath, SCORETYPE score, int phonePos);	
+	void getActiveToken();
+	int move2Transition(int, int, int, int, int);
+	void compete(int node, SCORETYPE score, int competeTokenIdx);
+	void initialize();
+	void selfState();
+	void nextState();
+	void competeAtNode();
+	void updatestateCompete(int token);
+	int reDirection(int, int, int);
+	void accessHistory();
+	void updateHistory();
+	void resetGraphInfo(int option);	
+	int obtainModel(int node, int branch, int phonePos);
+	SCORETYPE getTokenScore(int node, int branch, int phonePos, int state, int calCase, SCORETYPE tokenScore, SCORETYPE LMscore);
+	SCORETYPE stateScore(int);
+	SCORETYPE streamScore(int tsIdx);
+	int streamProbShift(int tsIdx);
+
+	float transitionProb(int, int, int);
+	double mixLogSum(double, double);
+	void computemixLogSumLookupTable();
+	void allocatestateCompete();
+	void readDic(char *dicFile);
+	DIC *dic;
+	
+	int dicEntryNum;
+	int arenaSize;
+	int feaFileIndex;
+	int frame;
+	int epsIndex;
+	int fIndex; // banco@20120629
+	int gpIndex, spIndex; // banco@20120924
+	
+	void readLookupTable(char *fileName, float alpha);
+	unsigned short int *LTendNodeNum;
+	//unsigned short int *LTendNodeArrayPosition;
+	unsigned int *LTendNodeArrayPosition; // LVCSR
+	int *LTendNodeArray;
+	SCORETYPE *LTProb;
+	
+	int *stateCompete, *arc2stateCompete, stateCompeteCounter, arc2stateCompeteNum;
+	unsigned int *arc2stateCompetePointer; // @20120723
+
+	SCORETYPE *cacheScore;
+	int beamSize;
+	int tokenNum;
+	int tmpTokenNum;
+
+	#if defined(ASR_SSE2)
+	__m128d mixLogSumLookupScale;	
+	#elif defined(ASR_AVX)
+	__m256d mixLogSumLookupScale;
+	#else
+	double mixLogSumLookupScale;
+	#endif
+	
+	double *mixLogSumLookupTable;
+	int mixLogSumLookupTableSize;
+
+	UTILITY U;
+	MACRO M;
+	//DNN D;
+	GRAPH G;
+	SCORETYPE *p2feaVec;
+
+	#ifdef USE_LATTICE
+	SCORETYPE lmScore, tmpLmScore;
+	SCORETYPE amScore, tmpAmScore;
+	//char latticeBuffer[1000000];
+	#endif
+public:
+	SEARCH(int keepTokenNum, float alpha, GRAPH &graph, MACRO &macro, char *lookupTableFile, char *dicFile);
+	//SEARCH(int keepTokenNum, float alpha, GRAPH &graph, DNN &macro, char *lookupTableFile, char *dicFile);
+	~SEARCH();
+	void doDecode(int keepBeamSize, int frameNum, SCORETYPE *feaVec, int fileIndex);
+	void showResult(int topN, char *spk, char *feaFile);
+	//int maxTokenNum;
+};
+
+#endif

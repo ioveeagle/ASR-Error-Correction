@@ -1,0 +1,52 @@
+#!/bin/bash
+### -O3
+PARA="-O2 -I decoder -msse2 -c"
+#PARA="-g -I decoder -msse2 -c"
+g++ $PARA decoder/*.cpp
+g++ $PARA util/*.cpp 
+comOBJ="utility.o readmacro.o graph.o"
+
+rm -f -r bin
+mkdir bin
+
+FILES=`find util -name "*.cpp"`
+for f in $FILES; do
+	temp0=(`echo "$f" | tr -s '/' ' '`)	# split by /
+	temp1=(`echo "${temp0[1]}" | tr -s '.' ' '`)	# split by .
+
+	g++ $comOBJ $temp1.o -o bin/$temp1
+done
+rm *.o
+
+### DNN part
+PARA="-O2 -I decoder-dnn -msse2 -c"
+#PARA="-g -I decoder-dnn -c"
+g++ $PARA decoder-dnn/*.cpp
+g++ $PARA util-dnn/*-dnn.cpp 
+comOBJ="utility.o readmacro-dnn.o graph.o"
+
+FILES=`find util-dnn -name "*-dnn.cpp"`
+for f in $FILES; do
+	temp0=(`echo "$f" | tr -s '/' ' '`)	# split by /
+	temp1=(`echo "${temp0[1]}" | tr -s '.' ' '`)	# split by .
+
+	g++ $comOBJ $temp1.o -o bin/$temp1
+done
+
+### LSTM part
+#PARA="-O2 -I decoder-dnn -msse2 -c"
+##PARA="-g -I decoder-dnn -c"
+#g++ $PARA util-dnn/*-lstm.cpp 
+#comOBJ="utility.o readmacro-lstm.o graph.o"
+
+#FILES=`find util-dnn -name "*-lstm.cpp"`
+#for f in $FILES; do
+#	temp0=(`echo "$f" | tr -s '/' ' '`)	# split by /
+#	temp1=(`echo "${temp0[1]}" | tr -s '.' ' '`)	# split by .
+
+#	g++ $comOBJ $temp1.o -o bin/$temp1
+#done
+rm *.o
+
+echo 'Set ' $PWD/bin ' to your environment variable'
+

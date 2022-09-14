@@ -1,0 +1,58 @@
+#!/bin/bash
+
+shopt -s nocasematch
+#PROF="-pg"
+#PROF="-DMOBILE_FRAMESKIP"
+
+if [[ -z $1 ]]; then
+	COMPILE_TARGET="default"
+else
+	COMPILE_TARGET=$1
+fi
+
+### SSE2 lattice ###
+#g++ -c -O3 -Wall $PROF *.cpp
+#g++ -c -O3 -msse2 -Wall $PROF -DASR_SSE2 -DUSE_LATTICE -DLATTICE_SIMPLE *.cpp
+#g++ -c -O3 -msse2 -Wall $PROF -DASR_SSE2 -DUSE_LATTICE *.cpp
+#g++ *.o $PROF -o recog_lattice
+#rm *.o
+
+#SRC_DNN="readmacro-dnn.lazy2.cpp search-dnn.cpp utility.cpp readfeature-dnn.cpp graph.cpp recog-dnn.cpp"
+SRC_DNN="readmacro-dnn.cpp search-dnn.cpp utility.cpp readfeature-dnn.cpp graph.cpp recog-dnn.cpp"
+#SRC_DNN="readmacro-lstm.cpp search-dnn.cpp utility.cpp readfeature-dnn.cpp graph.cpp recog-dnn.cpp"
+
+### CPU ###
+#g++ -O2 -fno-builtin -c $PROF $SRC_DNN
+
+### SSE2 ###
+if [[ $COMPILE_TARGET == "default" ]]; then
+	echo -e "\e[32m[INFO] Compile decoder program with [default] setting, executive will be 'recog-dnn.sse2'\e[0m"
+	g++ -O2 -msse2  -DASR_SSE2 -c $PROF $SRC_DNN
+	g++ *.o $PROF -o recog-dnn.sse2	
+elif [[ $COMPILE_TARGET == "framewise" ]]; then
+	echo -e "\e[32m[INFO] Compile decoder program with [framewise output] setting, executive will be 'recog-dnn.framewise.sse2'\e[0m"
+	g++ -O2 -msse2  -DASR_SSE2 -DUSE_FRAMEWISE_OUTPUT -c $PROF $SRC_DNN
+	g++ *.o $PROF -o recog-dnn.framewise.sse2	
+elif [[ $COMPILE_TARGET == "skip" ]]; then
+	echo -e "\e[32m[INFO] Compile decoder program with [frame skipping] setting, executive will be 'recog-dnn.skip2.sse2'\e[0m"
+	g++ -O2 -msse2 -DMOBILE_FRAMESKIP -DASR_SSE2 -c $PROF $SRC_DNN	
+	g++ *.o $PROF -o recog-dnn.skip2.sse2
+else
+	echo -e "\e[34m[WARNING] You didn't specify correct COMPILE_TARGET! [default|framewise|skip]\e[0m"
+	exit 1
+fi
+#g++ -O2 -msse2 -DMOBILE_FRAMESKIP -DASR_SSE2 -c $PROF $SRC_DNN
+#g++ -O2 -msse2 -DLAZY  -DMOBILE_FRAMESKIP -DASR_SSE2 -c $PROF $SRC_DNN
+#g++ -g -O2 -msse2 -DUSE_LSTM -DASR_SSE2 -c $PROF $SRC_DNN
+
+### AVX ###
+#g++ -O2 -mavx -DASR_AVX -c $PROF $SRC_DNN
+
+### FIXED-POINT ###
+#g++ -O3 -fno-builtin -c -Wall $PROF -DASR_FIXED *.cpp
+
+#g++ *.o $PROF -o recog-dnn.lstm
+#g++ *.o $PROF -o recog-dnn.skip2.sse2.new
+#g++ *.o $PROF -o recog-dnn.skip2.sse2
+rm *.o
+

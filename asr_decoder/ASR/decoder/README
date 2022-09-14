@@ -1,0 +1,27 @@
+
+DNN CODES
+===================
+To compile codes that process DNN, use command below:
+    $ g++ -O2 readmacrodnn.cpp utility.cpp -o readdnn
+
+
+2) Check DNN computation results
+   To generate test feature in Kaldi format, you have to do two things:
+       (1) turn on #define TEST_FEATURE 1
+       (2) set the last input argument of DNN:generateTestFeature() to 1, 
+           which will write randomly generated features to file 'testfeat.ark'.
+
+   Execute following command to call Kaldi to calculate posterior probability 
+   of each frame in 'testfeat.ark' and redirect the result to a file 'abc.txt':
+
+       nnet-am-compute dnn.mdl ark,t:testfeat.ark ark,t:- > abc.txt
+
+   Execute following command to calculate posterior probability of each frame
+   with our program and redirect the result to a file 'def.txt':
+	
+       ./readdnn > def.txt
+
+   Use any text editor to compare the above two files. Due to difference of 
+   implementation details, the answers should be very close but not exactly 
+   the same.
+

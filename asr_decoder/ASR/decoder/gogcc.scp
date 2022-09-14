@@ -1,0 +1,25 @@
+
+#PROF="-pg"
+PROF=""
+
+### SSE2 lattice ###
+#g++ -c -O3 -Wall $PROF *.cpp
+#g++ -c -O3 -msse2 -Wall $PROF -DASR_SSE2 -DUSE_LATTICE -DLATTICE_SIMPLE *.cpp
+#g++ -c -O3 -msse2 -Wall $PROF -DASR_SSE2 -DUSE_LATTICE *.cpp
+#g++ *.o $PROF -o recog_lattice
+#rm *.o
+
+### SSE2 ###
+g++ -g -O3 -fno-builtin -c -msse2 -Wall $PROF -DASR_SSE2 *.cpp
+
+### AVX ###
+#g++ -O3 -c -mavx -Wall $PROF -DASR_AVX *.cpp
+#g++ -O3 -S -fomit-frame-pointer -fno-rtti -fno-builtin -c -mavx -Wall $PROF -DASR_AVX *.cpp
+
+### FIXED-POINT ###
+#g++ -O3 -fno-builtin -c -Wall $PROF -DASR_FIXED *.cpp
+
+g++ *.o $PROF -o recog
+rm *.o
+
+

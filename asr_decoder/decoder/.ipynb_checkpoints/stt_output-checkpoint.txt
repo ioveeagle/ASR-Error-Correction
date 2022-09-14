@@ -1,0 +1,1 @@
+公路總局 用路人 服務 中心 服務 中心 您好 敝姓 詹 很 高興 為 您 服務	(spk_/home/jovyan/asr_decoder/decoder/input_feature/input_wave/foo.wav.mfcATC0DAC39mvacjp_atc)	-2772.565430	2.49 sec, 667 frames -> 0.37 RT

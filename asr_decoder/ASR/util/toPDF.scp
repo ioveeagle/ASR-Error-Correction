@@ -1,0 +1,13 @@
+read -p "input graph:" winIn
+
+cp $winIn unix.tmp
+fromdos -d unix.tmp
+iconv -f big5 -t utf-8 unix.tmp > inFile.tmp
+
+graph2symbol inFile.tmp sym.tmp
+
+fsmcompile -i sym.tmp -o sym.tmp inFile.tmp > g.bin
+fsmdraw -i sym.tmp -o sym.tmp g.bin | dot -N/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc -Tpdf > g.pdf
+
+rm *.bin *.tmp
+
